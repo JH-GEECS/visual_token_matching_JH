@@ -14,7 +14,9 @@ def get_optimizer(config, model):
     
     # train all parameters for episodic training
     if config.stage == 0:
+        # 이 부분에서 img encoder는 pretrained되었음에도 다시금 finetuning하는 것을 관찰할 수 있다.
         learnable_params.append({'params': model.pretrained_parameters(), 'lr': config.lr_pretrained})
+        # 이 부분에서 label encoder를 처음부터 학습시키는 것을 알 수 있는데, 매우 큰 model임에도 불구하고, scrath 학습을 한다.
         learnable_params.append({'params': model.scratch_parameters(), 'lr': config.lr})
 
     # train only task-specific parameters for fine-tuning

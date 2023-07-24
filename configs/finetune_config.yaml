@@ -5,7 +5,8 @@ strategy: ddp
 
 # data arguments
 dataset: taskonomy
-num_workers: 4
+num_workers: 8
+prefetch_factor : 4
 global_batch_size: 1
 shot: 10
 eval_batch_size: 5
@@ -41,3 +42,6 @@ log_iter: 100
 val_iter: 100
 save_iter: 100
 load_step: 0
+
+# experiment arguments
+exp_name: VTM_fold_0

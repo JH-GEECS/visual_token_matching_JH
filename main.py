@@ -15,11 +15,11 @@ def run(config):
         if config.task == 'segment_semantic':
             config.monitor = f'mtest_support/segment_semantic_{config.channel_idx}_pred'
             if config.save_postfix == '':
-                config.save_postfix = f'_task:segment_semantic_{config.channel_idx}'
+                config.save_postfix = f'_task_segment_semantic_{config.channel_idx}'
         else:
             config.monitor = f'mtest_support/{config.task}_pred'
             if config.save_postfix == '':
-                config.save_postfix = f'_task:{config.task}{config.save_postfix}'
+                config.save_postfix = f'_task_{config.task}{config.save_postfix}'
 
     # load model
     model, ckpt_path = load_model(config, verbose=IS_RANK_ZERO)
@@ -73,4 +73,3 @@ if __name__ == "__main__":
             run(config)
     else:
         run(config)
-

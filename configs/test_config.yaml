@@ -6,7 +6,8 @@ strategy: ddp
 # data arguments
 dataset: taskonomy
 test_split: muleshoe
-num_workers: 4
+num_workers: 8
+prefetch_factor : 4
 shot: 10
 eval_batch_size: 8
 n_eval_batches: -1
@@ -23,3 +24,7 @@ log_dir: TEST
 save_dir: FINETUNE
 load_dir: TRAIN
 load_step: 0
+
+
+# experiment arguments
+exp_name: VTM_fold_0

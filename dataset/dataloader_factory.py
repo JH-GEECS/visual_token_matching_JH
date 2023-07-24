@@ -13,7 +13,7 @@ base_sizes = {
     224: (256, 256)
 }
 
-
+# 여기가 train loader를 만드는 지점이다.
 def get_train_loader(config, pin_memory=True, verbose=True, get_support_data=False):
     '''
     Load training dataloader.
@@ -21,10 +21,12 @@ def get_train_loader(config, pin_memory=True, verbose=True, get_support_data=Fal
     # set dataset size
     if get_support_data:
         dset_size = config.shot
+        # 기본적으로 false로 되어 있다.
     elif config.no_eval:
         dset_size = config.n_steps*config.global_batch_size
     else:
         dset_size = config.val_iter*config.global_batch_size
+        # 20000 * 8 = 160000 16만장인데 이게 의미하는 바가 무엇인가?
 
     # compute common arguments
     common_kwargs = {
@@ -38,17 +40,25 @@ def get_train_loader(config, pin_memory=True, verbose=True, get_support_data=Fal
     }
 
     # create dataset for episodic training
+    # 만일 config.task_fold == 4 인 경우라면(저자가 순서를 거꾸로 해놈, taskonomy_constants.py 참고)
+    # 논문에서 저자가 제시한 것 처럼 TEST_TASK가 semantic segmentation과 surface normal이 된다.
     if config.stage == 0:
         tasks = TASKS if config.task == 'all' else TASKS_GROUP_TRAIN[config.task_fold]
         if verbose:
             print(f'Loading tasks {", ".join(tasks)} in train split.')
 
         # create training dataset.
+        # 이게 episodic training을 위한 구성이 된다.
+        # todo 이 부분 분석 필요
         train_data = TaskonomyHybridDataset(
             tasks=tasks,
+            # 저자가 논문에서 제시한 fold 8개 training task, 2개 test task를 불러온다.
             shot=config.shot,
+            # 각 task에 대하여 얼마 만큼의 sample을 보여 줄 것인가?
             tasks_per_batch=config.max_channels,
+            # 한번에 몇개의 task를 볼 것인가? 인데 yaml에는 5로 지정되어 있기 때문에 확인해봐야 겠다.
             domains_per_batch=config.domains_per_batch,
+            # domain per batch가 2로 지정되어 있는데 이게 뭘까?
             image_augmentation=config.image_augmentation,
             unary_augmentation=config.unary_augmentation,
             binary_augmentation=config.binary_augmentation,
@@ -80,9 +90,11 @@ def get_train_loader(config, pin_memory=True, verbose=True, get_support_data=Fal
 
 
     # create training loader.
+    # todo 이 부분에서 prefetch factor를 변형하여 disk io를 줄이도록 한다.
     train_loader = DataLoader(train_data, batch_size=(config.global_batch_size // torch.cuda.device_count()),
                               shuffle=False, pin_memory=pin_memory,
-                              drop_last=True, num_workers=config.num_workers)
+                              drop_last=True, num_workers=config.num_workers,
+                              prefetch_factor=config.prefetch_factor)
         
     return train_loader
 
@@ -143,7 +155,8 @@ def get_eval_loader(config, task, split='valid', channel_idx=-1, pin_memory=True
     # create dataloader.
     eval_loader = DataLoader(eval_data, batch_size=(config.eval_batch_size // torch.cuda.device_count()),
                              shuffle=False, pin_memory=pin_memory,
-                             drop_last=False, num_workers=1)
+                             drop_last=False, num_workers=config.num_workers,
+                             prefetch_factor=config.prefetch_factor)
     
     return eval_loader
 

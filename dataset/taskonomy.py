@@ -2,6 +2,7 @@ import os
 import random
 import numpy as np
 import PIL
+import pandas as pd
 from PIL import Image
 from einops import rearrange, repeat
 
@@ -12,6 +13,7 @@ from torch.utils.data import Dataset
 from .taskonomy_constants import SEMSEG_CLASSES, SEMSEG_CLASS_RANGE, TASKS_GROUP_DICT, TASKS, BUILDINGS
 from .augmentation import RandomHorizontalFlip, FILTERING_AUGMENTATIONS, RandomCompose, Mixup
 from .utils import crop_arrays, SobelEdgeDetector
+
 
 
 class TaskonomyBaseDataset(Dataset):
@@ -41,25 +43,36 @@ class TaskonomyBaseDataset(Dataset):
         self.img_size = img_size
         self.precision = precision
 
-        self.img_paths = [img_path for img_path in sorted(os.listdir(os.path.join(self.data_root, 'rgb')))
-                          if img_path.split('_')[0] in self.buildings]
+        # add code and csv information for fast loading of img paths
+        self.meta_info_path = 'dataset/meta_info'
+        self.rgb_file_df = pd.read_csv(os.path.join(self.meta_info_path, 'rgb_img_list.csv'))
+        self.rgb_path_list = self.rgb_file_df['file'].sort_values().to_list()
+
+        # 여기에서 os.listdir operation을 쓰는데 disk overhead가 매우 클것이다.
+        # todo 이부분 무조건 수정이 필요하다., problem exists in here
+        self.img_paths = self.rgb_file_df[self.rgb_file_df['scene_name'].isin(self.buildings)]['file'].sort_values().to_list()
+        # os.listdir(os.path.join(self.data_root, 'rgb'))  ## previously
+
+        # 이 부분은 pure python code여서 느리긴 한데, disk io만큼은 아니고 한번 init되면 끝이므로 괜찮다.
         self.path_dict = {building: [i for i, img_path in enumerate(self.img_paths)
                                      if img_path.split('_')[0] == building]
                           for building in self.buildings}
-            
         # register euclidean depth and occlusion edge statistics, sobel edge detectors, and class dictionary
-        self.meta_info_path = 'dataset/meta_info'
+
         self.depth_quantiles = torch.load(os.path.join(self.meta_info_path, 'depth_quantiles.pth'))
         self.edge_params = torch.load(os.path.join(self.meta_info_path, 'edge_params.pth'))
         self.sobel_detectors = [SobelEdgeDetector(kernel_size=k, sigma=s) for k, s in self.edge_params['params']]
         self.edge_thresholds = torch.load(os.path.join(self.meta_info_path, 'edge_thresholds.pth'))
         
+    ## try except는 성능에 크게 영향을 미치지 않는다.
     def load_img(self, img_path):
         img_path = os.path.join(self.data_root, 'rgb', img_path)
         try:
             # open image file
             img = Image.open(img_path)
+            # img = img.resize((256, 256), PIL.Image.BILINEAR)  # image preprocessed 512 -> 256
             img = np.asarray(img)
+            # 여기 bilinear interpolation 적용해야함
             
             # type conversion
             img = img.astype('float32') / 255
@@ -68,12 +81,19 @@ class TaskonomyBaseDataset(Dataset):
             img = np.transpose(img, (2, 0, 1))
             
             success = True
-            
+
         except PIL.UnidentifiedImageError:
             print(f'PIL Error on {img_path}')
-            img = -np.ones(3, 80, 80).astype('float32')
+            img = -np.ones((3, 256, 256)).astype('float32')
+            # 이 부분에서 image error인 경우에 있어서, 그래도 batchify를 위해서 256,256으로 만들어 주는 것이 맞을 것 같다.
+            # img = -np.ones(3, 80, 80).astype('float32')
             success = False
-        
+
+        except OSError:
+            print(f'OSError on {img_path}')
+            img = -np.ones((3, 256, 256)).astype('float32')
+            success = False
+
         return img, success
 
     def load_label(self, task, img_path):
@@ -84,89 +104,109 @@ class TaskonomyBaseDataset(Dataset):
             label_name = img_path.replace('rgb', task)
         label_path = os.path.join(task_root, label_name)
 
-        # open label file
-        label = Image.open(label_path)
-        label = np.asarray(label)
-        
-        # type conversion
-        if label.dtype == 'uint8':
-            label = label.astype('float32') / 255
-        else:
-            label = label.astype('float32')
-            
-        # shape conversion
-        if label.ndim == 2:
-            label = label[np.newaxis, ...]
-        elif label.ndim == 3:
-            label = np.transpose(label, (2, 0, 1))
-            
-        
-        return label
+        num_of_sub_task = len(TASKS_GROUP_DICT[task])
+
+        try:
+            # open label file
+            label = Image.open(label_path)
+            # label = label.resize((256, 256), PIL.Image.BILINEAR)  # image preprocessed 512 -> 256
+            label = np.asarray(label)
+            # 여기 bilinear interpolation 적용해야함
+
+            # type conversion
+            if label.dtype == 'uint8':
+                label = label.astype('float32') / 255
+            else:
+                label = label.astype('float32')
+
+            # shape conversion
+            # 1 channel task를 의미할 것이다.
+            if label.ndim == 2:
+                label = label[np.newaxis, ...]
+            # many channel task를 의미할 것이다.
+            elif label.ndim == 3:
+                label = np.transpose(label, (2, 0, 1))
+
+            success = True
+
+        except Exception as e:
+            print(f'Error on {label_path}')
+            label = -np.ones((num_of_sub_task, 256, 256)).astype('float32')
+            success = False
+
+        except PIL.UnidentifiedImageError as e:
+            print(f'PIL Error on {label_path}')
+            label = -np.ones((num_of_sub_task, 256, 256)).astype('float32')
+            success = False
+
+        return label, success
         
     def load_task(self, task, img_path):
         if task == 'segment_semantic':
-            label = self.load_label(task, img_path)
+            label, success = self.load_label(task, img_path)
             label = (255*label).astype("long")
             label[label == 0] = 1
             label = label - 1
             mask = np.ones_like(label)
             
         elif task == 'normal':
-            label = self.load_label(task, img_path)
+            label, success = self.load_label(task, img_path)
             label = np.clip(label, 0, 1)
             
             mask = np.ones_like(label)
             
         elif task in ['depth_euclidean', 'depth_zbuffer']:
-            label = self.load_label(task, img_path)
+            label, success = self.load_label(task, img_path)
             label = np.log((1 + label)) / np.log(2 ** 16)
             
-            depth_label = self.load_label('depth_euclidean', img_path)
+            depth_label, success = self.load_label('depth_euclidean', img_path)
             mask = (depth_label < 64500)
             
+        # 해당 task는 수행하지 않겠다는 것으로 보인다.
         elif task == 'edge_texture':
             label = mask = None
+            success = False
             
         elif task == 'edge_occlusion':
-            label = self.load_label(task, img_path)
+            label, success = self.load_label(task, img_path)
             label = label / (2 ** 16)
             
-            depth_label = self.load_label('depth_euclidean', img_path)
+            depth_label, success = self.load_label('depth_euclidean', img_path)
             mask = (depth_label < 64500)
             
         elif task == 'keypoints2d':
-            label = self.load_label(task, img_path)
+            label, success = self.load_label(task, img_path)
             label = label / (2 ** 16)
             label = np.clip(label, 0, 0.005) / 0.005
             
             mask = np.ones_like(label)
             
         elif task == 'keypoints3d':
-            label = self.load_label(task, img_path)
+            label, success = self.load_label(task, img_path)
             label = label / (2 ** 16)
             
-            depth_label = self.load_label('depth_euclidean', img_path)
+            depth_label, success = self.load_label('depth_euclidean', img_path)
             mask = (depth_label < 64500)
             
         elif task == 'reshading':
-            label = self.load_label(task, img_path)
+            label, success = self.load_label(task, img_path)
             label = label[:1]
             label = np.clip(label, 0, 1)
             
             mask = np.ones_like(label)
             
         elif task == 'principal_curvature':
-            label = self.load_label(task, img_path)
+            label, success = self.load_label(task, img_path)
             label = label[:2]
             label = np.clip(label, 0, 1)
             
-            depth_label = self.load_label('depth_euclidean', img_path)
+            depth_label, success = self.load_label('depth_euclidean', img_path)
             mask = (depth_label < 64500)
             
         else:
             raise ValueError(task)
             
-        return label, mask
+        return label, mask, success
     
     def preprocess_segment_semantic(self, labels, channels, drop_background=True):
         # regard non-support classes as background
@@ -266,6 +306,7 @@ class TaskonomyBaseDataset(Dataset):
             
         return labels, masks
 
+    # images processing 단에서 compose로 짜지 않아서 상당한 병목이 예상된다.
     def preprocess_batch(self, task, imgs, labels, masks, channels=None, drop_background=True):
         imgs = torch.from_numpy(imgs).float()
 
@@ -281,7 +322,8 @@ class TaskonomyBaseDataset(Dataset):
         # task-specific preprocessing
         if task == 'segment_semantic':
             labels, masks = self.preprocess_segment_semantic(labels, channels, drop_background)
-            
+
+        # depth z_buffer에서 무슨 문제가 있는가?
         elif task in ['depth_euclidean', 'depth_zbuffer']:
             labels, masks = self.preprocess_depth(labels, masks, channels, task)
         
@@ -317,10 +359,15 @@ class TaskonomyHybridDataset(TaskonomyBaseDataset):
         
         assert shot > 0
         self.shot = shot
+        #  각 task에 대하여 얼마 만큼의 sample을 보여 줄 것인가?
         self.tasks_per_batch = tasks_per_batch
+        # 각각의 batch에 얼마만큼의 task를 넣을 것인가?
         self.domains_per_batch = domains_per_batch
+        # domain per batch가 2로 지정되어 있는데 이게 뭘까?
+        # 각각의 batch에 대해서 train으로 지정된 building 중에서 2개를 고른다는 의미였다.
         self.dset_size = dset_size
-        
+        # 20000 * 8 = 160000 16만장인데 이게 의미하는 바가 무엇인가?
+
         if image_augmentation:
             self.image_augmentation = RandomHorizontalFlip()
         else:
@@ -344,38 +391,53 @@ class TaskonomyHybridDataset(TaskonomyBaseDataset):
     def __len__(self):
         if self.dset_size > 0:
             return self.dset_size
+            # val_iter: 20000 * 8 = 160000을 dataset size로 선정했다는 점이
+            # 잘 이해가 가지 않는다.
         else:
             return len(self.img_paths) // self.shot
     
+    # batch가 model의 한 iter에 해당하는 것인가?
+    # task를 어떻게 정의하는 가?
+    # 뭔가 여기서 문제가 자주 생기네
     def sample_batch(self, task, channel, path_idxs=None):
         # sample data paths
         if path_idxs is None:
             # sample buildings for support and query
             buildings = np.random.choice(self.buildings, 2*self.domains_per_batch, replace=False)
-                
+            # 그런데 여기에서 왜 2를 곱하는 건가?, 하여간 4개의 building만을 선발함을 알 수 있다.
+
             # sample image path indices in each building
             path_idxs = np.array([], dtype=np.int64)
             for building in buildings:
+                # 특정 building에서, shot / domain_per_batch를 통해서
+                # 4 shot이라면 4개의 예제를 의미하는 것일 텐데, building의 수로 나눈다.
+
+                # 한 building당 4개를 sampling함
                 path_idxs = np.concatenate((path_idxs,
                                             np.random.choice(self.path_dict[building], 
-                                                             self.shot // self.domains_per_batch, replace=False)))
-            
+                                                             self.shot // self.domains_per_batch,
+                                                             replace=False)))
+        # 첫 번째에 대해서 다 된다.
         # load images and labels
         imgs = []
         labels = []
         masks = []
         for path_idx in path_idxs:
             # index image path
+            # 여기 조금 문제 발생
             img_path = self.img_paths[path_idx]
 
             # load image, label, and mask
-            img, success = self.load_img(img_path)
-            label, mask = self.load_task(task, img_path)
-            if not success:
+            # success 이 부분을 잘 이용하는 수밖에 없을 것 같다.
+            img, success_img = self.load_img(img_path)
+            # task의 구성을 어떻게 하는 가를 살펴봐야 한다.
+            label, mask, success_label = self.load_task(task, img_path)
+            if not success_img or not success_label:
                 mask = np.zeros_like(label)
 
             imgs.append(img)
             labels.append(label)
+            # mask의 역활은 해당 label을 쓸 수 있다를 의미한다.
             masks.append(mask)
             
         # form a batch
@@ -384,6 +446,8 @@ class TaskonomyHybridDataset(TaskonomyBaseDataset):
         masks = np.stack(masks) if masks[0] is not None else None
         
         # preprocess and make numpy arrays to torch tensors
+        # 요 부분이 전처리 code
+        # 여기에서 channel을 어떻게 쓰는지 가 문제이다.
         imgs, labels, masks = self.preprocess_batch(task, imgs, labels, masks, [channel])
         
         return imgs, labels, masks, path_idxs
@@ -406,6 +470,8 @@ class TaskonomyHybridDataset(TaskonomyBaseDataset):
             
         return tasks, channels
     
+    # 각각의 batch를 가져오는 역활을 하는 것을 보인다.
+    # todo 거의다 왔다. task 구성이랑 optimized params만 잘 살펴보자.
     def __getitem__(self, idx):
         # sample tasks
         tasks, channels = self.sample_tasks()
@@ -417,7 +483,9 @@ class TaskonomyHybridDataset(TaskonomyBaseDataset):
         M = []
         t_idx = []
             
-        path_idxs = None # generated at the first task and then shared for the remaining tasks
+        path_idxs = None  # generated at the first task and then shared for the remaining tasks
+        # todo, analysis how data is loaded?
+        # 각각의 batch(4shot 학습, 4shot validation)에 대하여 5개의 tasks, model이 5개의 차원에 대한 output
         for i in range(self.tasks_per_batch):
             # sample a batch of images, labels, and masks for each task
             X_, Y_, M_, path_idxs = self.sample_batch(tasks[i], channels[i], path_idxs)
@@ -449,8 +517,11 @@ class TaskonomyHybridDataset(TaskonomyBaseDataset):
             t_idx.append(TASKS.index(f'{tasks[i]}_{channels[i]}'))
         
         # form a global batch
+        # 이 부분에서 문제이다. 가장 큰 점은 256 x 256 preprocessing이 끝나면 well done이라는 점이나,
+        # 저자의 code 사상으로는 512 x 512 image는 자동으로 resize transform이 되었어야 하는 것이다.
+
         X = torch.stack(X)
-        Y = torch.stack(Y)
+        Y = torch.stack(Y)  # 이 지점에서 error가 발생하고 있다.
         M = torch.stack(M)
 
         # random-crop arrays
@@ -489,9 +560,10 @@ class TaskonomyContinuousDataset(TaskonomyBaseDataset):
         img_path = self.img_paths[idx % len(self.img_paths)]
 
         # load image, label, and mask
-        img, success = self.load_img(img_path)
-        label, mask = self.load_task(self.task, img_path)
-        if not success:
+        # success 이 부분을 잘 이용하는 수밖에 없을 것 같다.
+        img, success_img = self.load_img(img_path)
+        label, mask, success_label = self.load_task(self.task, img_path)
+        if not success_img or not success_label:
             mask = np.zeros_like(label)
 
         # preprocess labels
@@ -521,7 +593,7 @@ class TaskonomySegmentationDataset(TaskonomyBaseDataset):
         super().__init__(root_dir, buildings, ['segment_semantic'], **kwargs)
 
         self.semseg_class = semseg_class        
-        self.img_paths = sorted(os.listdir(os.path.join(self.data_root, 'rgb'))) # use global path dictionary
+        self.img_paths = sorted(self.rgb_path_list)  # use global path dictionary
         self.class_dict = torch.load(os.path.join(self.meta_info_path, 'class_dict.pth'))
 
         self.n_channels = 1
@@ -562,9 +634,9 @@ class TaskonomySegmentationDataset(TaskonomyBaseDataset):
         img_path = self.img_paths[path_idx]
 
         # load image, label, and mask
-        img, success = self.load_img(img_path)
-        label, mask = self.load_task('segment_semantic', img_path)
-        if not success:
+        img, success_img = self.load_img(img_path)
+        label, mask, success_label = self.load_task('segment_semantic', img_path)
+        if not success_img or not success_label:
             mask = np.zeros_like(mask)
 
         # preprocess labels
@@ -605,7 +677,7 @@ class TaskonomyFinetuneDataset(TaskonomyBaseDataset):
             self.image_augmentation = None
             
         if task == 'segment_semantic':
-            self.img_paths = sorted(os.listdir(os.path.join(self.data_root, 'rgb')))
+            self.img_paths = sorted(self.rgb_path_list)
             self.class_dict = torch.load(os.path.join(self.meta_info_path, 'class_dict.pth'))
 
             class_idxs = []
@@ -651,9 +723,9 @@ class TaskonomyFinetuneDataset(TaskonomyBaseDataset):
                 img_path = self.img_paths[idx_]
 
             # load image, label, and mask
-            img, success = self.load_img(img_path)
-            label, mask = self.load_task(self.task, img_path)
-            if not success:
+            img, success_img = self.load_img(img_path)
+            label, mask, success_label = self.load_task(self.task, img_path)
+            if not success_img or not success_label:
                 mask = np.zeros_like(label)
 
             imgs.append(img)

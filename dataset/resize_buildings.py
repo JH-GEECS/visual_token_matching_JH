@@ -64,6 +64,9 @@ def resize(args):
         img = img.resize(size, mode)
         img.save(save_path)
         return None
+    except OSError as e:
+        print(e)
+        return load_path
     except Exception as e:
         print(e)
         return load_path

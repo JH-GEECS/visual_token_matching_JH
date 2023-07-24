@@ -32,11 +32,16 @@ TASKS = TASKS_SEMSEG + TASKS_DEPTHE + TASKS_DEPTHZ + \
 # Train and Test Tasks - can be splitted in other ways
 N_SPLITS = 5
 TASKS_GROUP_NAMES = ["segment_semantic", "normal", "depth_euclidean", "depth_zbuffer", "edge_texture", "edge_occlusion", "keypoints2d", "keypoints3d", "reshading", "principal_curvature"]
+
+# manually added CONSTANT
+TASKS_GROUP_NAMES_SUB = ["segment_semantic", "normal", "depth_euclidean", "depth_zbuffer", "edge_occlusion", "keypoints2d", "keypoints3d", "reshading", "principal_curvature", 'rgb']
+TASKS_GROUP_NAMES_NUM_UNDER = [0, 0, 1, 1, 1, 0, 0, 0, 1, 0]
+
 TASKS_GROUP_LIST = [TASKS_SEMSEG, TASKS_NORMAL, TASKS_DEPTHE, TASKS_DEPTHZ, TASKS_EDGE2D, TASKS_EDGE3D, TASKS_KEYPOINTS2D, TASKS_KEYPOINTS3D, TASKS_RESHADING, TASKS_CURVATURE]
 TASKS_GROUP_DICT = {name: group for name, group in zip(TASKS_GROUP_NAMES, TASKS_GROUP_LIST)}
 
 N_TASK_GROUPS = len(TASKS_GROUP_NAMES)
-GROUP_UNIT = N_TASK_GROUPS // N_SPLITS
+GROUP_UNIT = N_TASK_GROUPS // N_SPLITS # 이 경우에 대해서는 10 // 5 = 2
 
 TASKS_GROUP_TRAIN = {}
 TASKS_GROUP_TEST = {}

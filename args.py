@@ -114,13 +114,13 @@ if config.debug_mode:
 if config.exp_name == '':
     if config.stage == 0:
         if config.task == '':
-            config.exp_name = f'{config.model}_fold:{config.task_fold}{config.name_postfix}'
+            config.exp_name = f'{config.model}_fold_{config.task_fold}{config.name_postfix}'
         else:
-            config.exp_name = f'{config.model}_task:{config.task}{config.name_postfix}'
+            config.exp_name = f'{config.model}_task_{config.task}{config.name_postfix}'
     else:
         fold_dict = {}
         for fold in TASKS_GROUP_TEST:
             for task in TASKS_GROUP_TEST[fold]:
                 fold_dict[task] = fold
         task_fold = fold_dict[config.task]
-        config.exp_name = f'{config.model}_fold:{task_fold}{config.name_postfix}'
+        config.exp_name = f'{config.model}_fold_{task_fold}{config.name_postfix}'

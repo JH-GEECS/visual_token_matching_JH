@@ -64,6 +64,7 @@ def compute_loss(model, train_data, config):
     M_S, M_Q = M.split(math.ceil(M.size(2) / 2), dim=2)
 
     # ignore masked region in support label
+    # 매우 중요한 특성이다., 구현의 면에서 손상된 image를 처리하기 위해서 이렇게 해놓기는 했다.
     Y_S_in = torch.where(M_S.bool(), Y_S, torch.ones_like(Y_S) * config.mask_value)
 
     # compute loss for query images

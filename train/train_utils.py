@@ -62,9 +62,9 @@ def set_directories(config, root_dir='experiments', exp_name='', log_dir='logs',
     # make an experiment name
     if exp_name == '':
         if config.task == '':
-            exp_name = config.exp_name = f'{config.model}_fold:{config.task_fold}{config.name_postfix}'
+            exp_name = config.exp_name = f'{config.model}_fold_{config.task_fold}{config.name_postfix}'
         else:
-            exp_name = config.exp_name = f'{config.model}_task:{config.task}{config.name_postfix}'
+            exp_name = config.exp_name = f'{config.model}_task_{config.task}{config.name_postfix}'
     
     # create the root directory
     os.makedirs(root_dir, exist_ok=True)
@@ -81,7 +81,8 @@ def set_directories(config, root_dir='experiments', exp_name='', log_dir='logs',
 
         # reset the logging directory if exists
         if config.stage == 0 and os.path.exists(log_dir) and not (config.continue_mode or config.skip_mode):
-            shutil.rmtree(log_dir)
+            pass
+            # shutil.rmtree(log_dir)  # sync를 못 맞추어서 계속 error가 발생하는 것 같다. in ddp mode
         os.makedirs(log_dir, exist_ok=True)
     else:
         log_dir = None
@@ -226,6 +227,7 @@ def load_model(config, verbose=True):
     # create trainer for episodic training
     if config.stage == 0:
         model = LightningTrainWrapper(config, verbose=verbose)
+        # 여기서 continue_mode
         if config.continue_mode:
             load_path = get_ckpt_path(config.load_dir, config.exp_name, -1, save_postfix=config.save_postfix)
 

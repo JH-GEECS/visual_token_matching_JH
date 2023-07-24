@@ -15,7 +15,7 @@ from .loss import compute_loss, compute_metric
 from .visualize import visualize_batch, postprocess_depth, postprocess_semseg
 from .miou_fss import AverageMeter
 
-
+# paper에서 학습 구성이 어떻게 되어 있는 지 확인하기 어려워서 code를 통해서 확인하고자 한다.
 class LightningTrainWrapper(pl.LightningModule):
     def __init__(self, config, verbose=True, load_pretrained=True):
         '''
@@ -42,7 +42,7 @@ class LightningTrainWrapper(pl.LightningModule):
         
         # save hyper=parameters
         self.save_hyperparameters()
-
+    # 이 부분이 의미하는 것은 meta train / test 시에 어떠한 task를 support에 넣을 지를 결정하는 것으로 보인다.
     def load_support_data(self, data_path='support_data.pth'):
         '''
         Load support data for validation.
@@ -72,6 +72,7 @@ class LightningTrainWrapper(pl.LightningModule):
         optimizer, self.lr_scheduler = get_optimizer(self.config, self.model)
         return optimizer
     
+    # tarin dataloader 쪽에서 어떻게 batch를 구성하는 지를 알면 meta training을 어떻게 구성했는 지 알 수 있을 것이다.
     def train_dataloader(self, verbose=True):
         '''
         Prepare training loader.
@@ -114,6 +115,7 @@ class LightningTrainWrapper(pl.LightningModule):
                     
                 return torch.utils.data.DataLoader(dset, shuffle=False, batch_size=len(dset))
                 
+    # get eval loader를 통해서, evaluation step에서의 data를 load하는 것을 알겠지만, tune 대상 parameter가 무엇인지 파악해야 한다.
     def test_dataloader(self, verbose=True):
         '''
         Prepare test loaders.
@@ -134,6 +136,8 @@ class LightningTrainWrapper(pl.LightningModule):
         A single training iteration.
         '''
         # forward model and compute loss.
+        # loss의 계산이 query에 대해서 하는 건가? 맞다.. 그렇기에 meta learning이기는 하다.
+        # 그러면 bias tuning은 어디에서 개입하고, 어느 정도의 lr을 가지는 가?
         loss = compute_loss(self.model, batch, self.config)
 
         # schedule learning rate.

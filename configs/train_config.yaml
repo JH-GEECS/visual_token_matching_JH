@@ -6,10 +6,11 @@ strategy: ddp
 # data arguments
 dataset: taskonomy
 task_fold: 0
-num_workers: 4
+num_workers: 8
+prefetch_factor : 4
 global_batch_size: 8
 max_channels: 5
-shot: 4
+shot: 4 # 각각의 task에 대한 학습의 예제로서 4개를 보여준다는 의미이다.
 n_buildings: -1
 domains_per_batch: 2
 eval_batch_size: 8
@@ -45,6 +46,8 @@ lr_warmup: 5000
 lr_warmup_scale: 0.
 schedule_from: 0
 weight_decay: 0.
+
+
 lr_decay_degree: 0.9
 mask_value: -1.
 early_stopping_patience: -1
@@ -57,3 +60,6 @@ log_iter: 100
 val_iter: 20000
 save_iter: 20000
 load_step: -1
+
+# continue mode
+exp_name: VTM_fold_0
