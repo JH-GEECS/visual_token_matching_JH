@@ -11,6 +11,7 @@ class VTMImageBackbone(nn.Module):
     def forward(self, x, t_idx=None, **kwargs):
         return forward_6d_as_4d(self.backbone, x, t_idx=t_idx, get_features=True, **kwargs)
 
+    # 여기가 중요한 점이, 내가 prompt parameter 이런 방식으로 넘기면 될 것으로 보인다.
     def bias_parameters(self):
         # bias parameters for similarity adaptation
         for p in self.backbone.bias_parameters():
@@ -40,7 +41,7 @@ class VTMLabelBackbone(nn.Module):
         
         return x
         
-
+# todo 너무 구현이 간단하잖아! EXPRES 적용하기 매우 좋다.
 class VTMMatchingModule(nn.Module):
     def __init__(self, dim_w, dim_z, config):
         super().__init__()

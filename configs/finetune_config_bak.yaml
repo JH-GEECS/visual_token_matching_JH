@@ -44,4 +44,4 @@ save_iter: 100
 load_step: 0
 
 # experiment arguments
-exp_name: VTM_fold_4
+exp_name: VTM_fold_0
