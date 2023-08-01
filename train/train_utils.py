@@ -239,6 +239,7 @@ def load_model(config, verbose=True):
         
         model = LightningTrainWrapper(config=config, verbose=verbose)
         # select task-specific parameters for test task
+        # task specific하게 저장된 bias tuned parameter를 가져온다는 의미로 보인다.
         if config.stage == 1:
             select_task_specific_parameters(config, model, state_dict)
         # load fine-tuned checkpoint

@@ -42,6 +42,14 @@ class VTMLabelBackbone(nn.Module):
         return x
         
 # todo 너무 구현이 간단하잖아! EXPRES 적용하기 매우 좋다.
+"""
+1. bias tuning on V
+2. bias tuning on Q
+3. VTM module에 nn parameter 느낌으로 prompt 넣기, VPT-deep 비슷하게
+4. VTM module에서 prompt는 inter-layer connection 넣기 w/ residual connection
+5. 
+
+"""
 class VTMMatchingModule(nn.Module):
     def __init__(self, dim_w, dim_z, config):
         super().__init__()
@@ -62,7 +70,8 @@ class VTMMatchingModule(nn.Module):
             Q = from_6d_to_3d(W_Qs[level])
             K = from_6d_to_3d(W_Ss[level])
             V = from_6d_to_3d(Z_Ss[level])
-            
+
+            # K에 대해서는 layer Norm이 적용되면 좋을 것으로 생각했는데, 그렇지 않은 것 같다.
             O = self.matching[level](Q, K, V, N=N, H=H, mask=attn_mask)
             Z_Q = from_3d_to_6d(O, B=B, T=T, H=H, W=W)
             Z_Qs.append(Z_Q)

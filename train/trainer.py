@@ -130,7 +130,9 @@ class LightningTrainWrapper(pl.LightningModule):
         Forward data to model.
         '''
         return self.model(*args, **kwargs)
-    
+
+    # 나의 이해가 부족한 부분이 있었다. 해당 code는 한번의 step에 대해서 gradient를 update를 한다는 것이였다.
+    # 따라서 한 epoch가 어떻게 구성되는 가는 코드를 조금더 살펴볼 필요가 있다.
     def training_step(self, batch, batch_idx):
         '''
         A single training iteration.
@@ -144,8 +146,10 @@ class LightningTrainWrapper(pl.LightningModule):
         self.lr_scheduler.step(self.global_step)
 
         if self.config.stage == 0:
+            # meta train 단계에서는 여기를 이용한다는 의미이다.
             tag = ''
         elif self.config.stage == 1:
+            # meta test 단계에서는 여기를 이용한다는 의미이다.
             if self.config.task == 'segment_semantic':
                 tag = f'_segment_semantic_{self.config.channel_idx}'
             else:

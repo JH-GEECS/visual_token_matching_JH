@@ -256,7 +256,7 @@ def parallel_whole_image_resize_writer(meta_info_dir, image_root_dir, output_dir
 
     :return:
     """
-    # IO intensive task에 대해서는 CPU coeff를 DISK IO 감당 가능 수치까지 늘린다. 128 IOPS
+    # IO intensive task에 대해서는 CPU coeff를 HDD DISK IO 감당 가능 수치까지 늘린다. 128 IOPS
     context = ray.init(num_cpus=num_cpus, include_dashboard=True)
 
     df_dict = {}

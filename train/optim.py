@@ -21,6 +21,7 @@ def get_optimizer(config, model):
 
     # train only task-specific parameters for fine-tuning
     # stage 2 evaluation step에서는 그러한 것을 하지 않는다는 것을 알 수 있다.
+    # todo nn.parameter를 하느
     elif config.stage == 1:
         learnable_params.append({'params': model.bias_parameters(), 'lr': config.lr})
     

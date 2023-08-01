@@ -1,0 +1,55 @@
+# environment settings
+seed: 0
+precision: bf16
+strategy: ddp
+
+# data arguments
+dataset: taskonomy
+num_workers: 8
+prefetch_factor : 4
+global_batch_size: 1
+shot: 10
+eval_batch_size: 5
+n_eval_batches: 2
+img_size: 224
+support_idx: 0
+channel_idx: -1
+
+# model arguments
+model: VTM
+semseg_threshold: 0.2
+attn_dropout: 0.5
+
+# training arguments
+n_steps: 20000
+n_schedule_steps: 20000
+optimizer: adam
+lr: 0.005
+lr_schedule: constant 
+lr_warmup: 0
+lr_warmup_scale: 0.
+schedule_from: 0
+weight_decay: 0.
+lr_decay_degree: 0.9
+mask_value: -1.
+early_stopping_patience: 5
+
+# logging arguments
+log_dir: FINETUNE
+save_dir: FINETUNE
+load_dir: TRAIN
+log_iter: 100
+val_iter: 100
+save_iter: 100
+load_step: 0
+
+# experiment arguments for VTM improve
+VTM_module_pre_LN: True # 주의) meta training 필요
+VTM_module_V_tune: True # VTM moudule에서 value의 projection시에 bias를 tuning 할 것인가?
+VTM_module_K_tune: True # VTM module에서 key의 projection시에 bias를 tuning 할 것인가?
+VTM_module_prompt: True # VTM module에 있어서 VPT-deep을 차용한 prompt를 사용할 것인가?
+VTM_module_prompt_res: True # layer간의 residual connection을 부여하고, express parameter를 부여한는가?
+VTM_module_prompt_num: 20 # VTM module에서 prompt의 길이, 10 shot * 196 patch의 1% 약 20개 token
+# prompt num을 engineering할 수 있어야 한다.
+VTM_module_prompt_res_LN: True # 주의) meta training 필요
+VTM_module_prompt_res_proj: True # 주의) metra training 필요 / layer간의 comm. 시에 projection을 사용할 것인가?
