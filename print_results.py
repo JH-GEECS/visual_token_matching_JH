@@ -21,7 +21,7 @@ def create_table(model, tasks, ptf, print_failure=False):
             success = True
             average_meter = AverageMeter(range(len(SEMSEG_CLASSES)))
             for i, c in enumerate(SEMSEG_CLASSES):
-                result_name = f'result_task_{task}_{c}_split:{args.test_split}.pth'
+                result_name = f'result_task_{task}_{c}_split_{args.test_split}.pth'
                 result_path = os.path.join(result_root, exp_name, 'logs', result_name)
                 try:
                     average_meter_c = torch.load(result_path, map_location='cpu')
@@ -38,7 +38,7 @@ def create_table(model, tasks, ptf, print_failure=False):
             elif print_failure:
                 print(result_path)
         else:
-            result_name = f'result_task_{task}_split:{args.test_split}.pth'
+            result_name = f'result_task_{task}_split_{args.test_split}.pth'
             result_path = os.path.join(result_root, exp_name, 'logs', result_name)
             if os.path.exists(result_path):
                 result = torch.load(result_path)

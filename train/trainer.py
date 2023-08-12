@@ -324,16 +324,22 @@ class LightningTrainWrapper(pl.LightningModule):
     
     def test_epoch_end(self, test_step_outputs):
         # append test split to save_postfix
-        log_name = f'result{self.config.save_postfix}_split:{self.config.test_split}.pth'
+        log_name = f'result{self.config.save_postfix}_split_{self.config.test_split}.pth'
+        txt_log_name = f'result{self.config.save_postfix}_split_{self.config.test_split}.txt'
         log_path = os.path.join(self.config.result_dir, log_name)
+        txt_log_path = os.path.join(self.config.result_dir, txt_log_name)
         
         if self.config.task == 'segment_semantic':
             torch.save(self.miou_evaluator, log_path)
+            with open(txt_log_path, 'w') as f:
+                f.write(str(self.miou_evaluator))
         else:
             N_total = sum([losses[1] for losses in test_step_outputs])
             metric = sum([losses[0] for losses in test_step_outputs]) / N_total
             metric = metric.cpu().item()
             torch.save(metric, log_path)
+            with open(txt_log_path, 'w') as f:
+                f.write(str(metric))
         
     @pl.utilities.rank_zero_only
     def vis_images(self, batch, task, vis_shot=-1, **kwargs):
